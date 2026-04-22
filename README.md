@@ -28,12 +28,14 @@ If you regularly:
 When you run `/orchestrate`:
 
 1. **Locates the plan** — prefers an argument, then the current conversation, then a clearly-referenced plan file. Won't go hunting for stale `PLAN.md` files in random subdirectories.
-2. **Shows a delegation plan** — a tight wave/dependency view (what runs in parallel, what runs sequentially, where checkpoints fall). This is *not* a restatement of the plan. One mandatory check-in here, then it goes.
-3. **Spawns `implementer` sub-agents in waves** — each in its own git worktree (`isolation: "worktree"`) on its own branch. Parallel within a wave when the work is disjoint; sequential when it isn't.
-4. **Keeps moving.** Stops only for: a real fork in the road, a finding that invalidates the plan, an irreversible action you haven't authorized, or a checkpoint marked in the plan. *Not* for progress updates or routine confirmations.
-5. **Reports back** — at the end (and at checkpoints), surfaces the worktree paths/branches you need to review and merge, plus any assumptions made.
+2. **Captures the invocation branch** — the branch you were on when you typed `/orchestrate`. That's the integration target for everything this run produces.
+3. **Shows a delegation plan** — a tight wave/dependency view (what runs in parallel, what runs sequentially, where checkpoints fall). This is *not* a restatement of the plan. One mandatory check-in here, then it goes.
+4. **Spawns `implementer` sub-agents in waves** — each in its own git worktree (`isolation: "worktree"`) on its own branch. Parallel within a wave when the work is disjoint; sequential when it isn't.
+5. **Fast-forwards the invocation branch between waves** — each wave's worktree branch gets merged (fast-forward) into the invocation branch before the next wave starts, so later waves can just base on the invocation branch. Nothing is pushed — this is all local.
+6. **Keeps moving.** Stops only for: a real fork in the road, a finding that invalidates the plan, an irreversible action you haven't authorized, or a checkpoint marked in the plan. *Not* for progress updates or routine confirmations.
+7. **Reviews and cleans up at the end** — by default, asks once whether to review the full diff on the invocation branch and clean up the worktrees, or just hand you the worktree paths.
 
-The `implementer` sub-agents are the lowest-level worker — they don't spawn their own sub-agents. If a unit of work turns out to be too big, they stop and ask the orchestrator to re-decompose.
+The `implementer` sub-agents are the lowest-level worker — they don't spawn their own sub-agents, don't push to `origin`, and don't touch PRs. All remote interaction is the orchestrator's or your job. If a unit of work turns out to be too big, they stop and ask the orchestrator to re-decompose.
 
 ## Setup
 
@@ -80,19 +82,22 @@ Claude: Delegation plan:
 You:    yes
 
 Claude: [spawns A and B in parallel, each in its own worktree]
-Claude: Wave 1 done. A → worktree at .../wt-a on branch agent/add-role-migration.
-        B → worktree at .../wt-b on branch agent/admin-route-scaffold. Starting Wave 2.
-Claude: [spawns C]
-Claude: Wave 2 done. Hitting the checkpoint — please review before Wave 3.
-You:    [review, merge, approve] go
+Claude: Wave 1 done. Fast-forwarded feature/admin-roles onto both branches;
+        now at abc1234, +4 commits. Starting Wave 2.
+Claude: [spawns C, based on feature/admin-roles]
+Claude: Wave 2 done. feature/admin-roles now at def5678, +6 commits.
+        Hitting the checkpoint — please review before Wave 3.
+You:    [review, approve] go
 Claude: [spawns D and E in parallel, reports results]
-Claude: All waves done. Want me to review the diffs and merge these branches
-        into main? (Otherwise I'll just hand you the worktree paths.)
+Claude: All waves done. feature/admin-roles now at 9abc012, +10 commits
+        since the run started. Want me to review the full diff and clean up
+        the worktrees? (Otherwise I'll just hand you the worktree paths.)
 You:    yes
-Claude: [reads each diff, judges it against the plan, merges, cleans up worktrees]
-Claude: Merged A, B, C, D into main. Held back E — the audit log table is
-        missing the indexed_at column the plan called out. Worktree still at
-        .../wt-e on branch agent/audit-log if you want to look.
+Claude: [reads the diff, judges it against the plan, cleans up worktrees]
+Claude: Diff looks good except E — the audit log table is missing the
+        indexed_at column the plan called out. Left E's worktree at
+        .../wt-e on branch agent/audit-log for you to look at; cleaned
+        up the rest.
 ```
 
 ## Usage
@@ -114,23 +119,25 @@ The typical flow this is built for:
 
 ## Review and integration
 
+Because the invocation branch has been fast-forwarded onto each wave's worktree branch as the run progresses, by the end the work is already on your branch. What's left is reviewing the cumulative diff and cleaning up the worktrees.
+
 At the end of each run (and at each checkpoint), the orchestrator asks once:
 
-> "Want me to review the diffs and merge these branches into main?"
+> "Want me to review the full diff on `<invocation-branch>` from this run?"
 
-- **Yes:** the orchestrator reads each branch's diff, judges it against the plan, merges the ones that look right, and cleans up their worktrees. Anything that looks wrong is held back with a specific reason and left for you to look at.
-- **No:** you get the worktree paths and handle merge + cleanup yourself with standard git commands:
+- **Yes:** the orchestrator reads the diff, judges it against the plan, and — if it looks right — removes the worktrees and deletes the worktree branches. Anything that looks wrong is held back with a specific reason and the worktrees are left in place for you to look at.
+- **No:** you get the worktree paths and handle cleanup yourself with standard git commands:
 
   ```bash
   git worktree list
-  git worktree remove <path>
+  git worktree remove <path>      # -f -f if the path is locked
   git branch -d <branch>          # -D if not merged and you're sure
   git worktree prune              # bulk: prune worktrees whose dirs were deleted manually
   ```
 
-If you want to skip the offer entirely and just have everything merged at the end, pass `--no-review` (or `--trust`) when you invoke the skill: `/orchestrate --no-review`. The orchestrator will merge each branch straight into main and clean up worktrees, only stopping on actual merge conflicts. Useful when you trust the plan + implementers and don't want a review gate.
+If you want to skip the offer entirely, pass `--no-review` (or `--trust`) when you invoke the skill: `/orchestrate --no-review`. The orchestrator will clean up worktrees without a review gate. Useful when you trust the plan + implementers.
 
-The model is: the orchestrator is your reviewer of record when you opt in. It has the project context and knows why each branch exists, so it's well-placed to judge whether a diff did what was asked. If you'd rather review yourself, say no and you get the raw worktrees. If you'd rather skip review entirely, pass `--no-review`.
+The model is: the orchestrator is your reviewer of record when you opt in. It has the project context and knows why each commit exists, so it's well-placed to judge whether the diff did what was asked. If you'd rather review yourself, say no and you get the raw worktrees. If you'd rather skip review entirely, pass `--no-review`.
 
 ## Customizing
 
