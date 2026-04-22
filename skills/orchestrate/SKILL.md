@@ -74,7 +74,17 @@ If you can't confidently identify a plan, ask the user. Never silently pick a st
 
 5. **At each checkpoint:** stop, summarize, wait for the user.
 
-6. **When the plan is complete:** report all worktree paths/branches the user needs to review and merge, plus anything left unfinished or any assumptions made along the way.
+6. **When the plan is complete (and at each checkpoint):** offer to review and integrate. Ask the user once, in roughly this form:
+
+   > "Want me to review the diffs and merge these branches into main? (Otherwise I'll just hand you the worktree paths.)"
+
+   - **If yes:** for each branch produced in this run (or since the last checkpoint), run `git diff main..<branch>`, read it, and judge it against what was asked. If it looks right, merge into main, then `git worktree remove <path>` and `git branch -d <branch>`. If something looks wrong, stop and report the specific concern instead of merging that branch. On conflicts between parallel branches, resolve them in main and then merge.
+
+   - **If no:** report the worktree paths and branches and stop.
+
+   Either way, also report anything left unfinished or any assumptions made along the way.
+
+   You are the reviewer of record when the user opts in. Don't rubber-stamp — if a diff doesn't match the plan, say so.
 
 ## Example subagent call
 

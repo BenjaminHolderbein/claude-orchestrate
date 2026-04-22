@@ -86,12 +86,13 @@ Claude: [spawns C]
 Claude: Wave 2 done. Hitting the checkpoint — please review before Wave 3.
 You:    [review, merge, approve] go
 Claude: [spawns D and E in parallel, reports results]
-Claude: Done. Worktrees to review:
-          .../wt-a (branch agent/add-role-migration)
-          .../wt-b (branch agent/admin-route-scaffold)
-          .../wt-c (branch agent/role-middleware)
-          .../wt-d (branch agent/admin-dashboard)
-          .../wt-e (branch agent/audit-log)
+Claude: All waves done. Want me to review the diffs and merge these branches
+        into main? (Otherwise I'll just hand you the worktree paths.)
+You:    yes
+Claude: [reads each diff, judges it against the plan, merges, cleans up worktrees]
+Claude: Merged A, B, C, D into main. Held back E — the audit log table is
+        missing the indexed_at column the plan called out. Worktree still at
+        .../wt-e on branch agent/audit-log if you want to look.
 ```
 
 ## Usage
@@ -111,24 +112,23 @@ The typical flow this is built for:
 - **Default model** for implementers is inherited from the orchestrator. If you want them cheaper, add `model: sonnet` (or `model: haiku`) to the frontmatter of `agents/implementer.md`.
 - **Tools** the implementer has are listed in its frontmatter. It deliberately doesn't have access to spawn sub-agents — it's the lowest-level worker. Edit the `tools:` line if you want to scope it down further.
 
-## Cleaning up worktrees
+## Review and integration
 
-After a few `/orchestrate` runs you'll accumulate worktrees and branches. Standard git cleanup:
+At the end of each run (and at each checkpoint), the orchestrator asks once:
 
-```bash
-# See what's around
-git worktree list
-git branch
+> "Want me to review the diffs and merge these branches into main?"
 
-# Remove a worktree once you've merged or dropped its work
-git worktree remove <path>
-git branch -d <branch>          # -D if not merged and you're sure
+- **Yes:** the orchestrator reads each branch's diff, judges it against the plan, merges the ones that look right, and cleans up their worktrees. Anything that looks wrong is held back with a specific reason and left for you to look at.
+- **No:** you get the worktree paths and handle merge + cleanup yourself with standard git commands:
 
-# Bulk: prune any worktrees whose directories were deleted manually
-git worktree prune
-```
+  ```bash
+  git worktree list
+  git worktree remove <path>
+  git branch -d <branch>          # -D if not merged and you're sure
+  git worktree prune              # bulk: prune worktrees whose dirs were deleted manually
+  ```
 
-Eventually this repo may grow a sibling `/integrate` skill that handles merge + cleanup, but for now the integration step is yours.
+The model is: the orchestrator is your reviewer of record when you opt in. It has the project context and knows why each branch exists, so it's well-placed to judge whether a diff did what was asked. If you'd rather review yourself, say no and you get the raw worktrees.
 
 ## Customizing
 
