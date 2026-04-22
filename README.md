@@ -128,7 +128,9 @@ At the end of each run (and at each checkpoint), the orchestrator asks once:
   git worktree prune              # bulk: prune worktrees whose dirs were deleted manually
   ```
 
-The model is: the orchestrator is your reviewer of record when you opt in. It has the project context and knows why each branch exists, so it's well-placed to judge whether a diff did what was asked. If you'd rather review yourself, say no and you get the raw worktrees.
+If you want to skip the offer entirely and just have everything merged at the end, pass `--no-review` (or `--trust`) when you invoke the skill: `/orchestrate --no-review`. The orchestrator will merge each branch straight into main and clean up worktrees, only stopping on actual merge conflicts. Useful when you trust the plan + implementers and don't want a review gate.
+
+The model is: the orchestrator is your reviewer of record when you opt in. It has the project context and knows why each branch exists, so it's well-placed to judge whether a diff did what was asked. If you'd rather review yourself, say no and you get the raw worktrees. If you'd rather skip review entirely, pass `--no-review`.
 
 ## Customizing
 

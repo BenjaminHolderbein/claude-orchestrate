@@ -74,17 +74,23 @@ If you can't confidently identify a plan, ask the user. Never silently pick a st
 
 5. **At each checkpoint:** stop, summarize, wait for the user.
 
-6. **When the plan is complete (and at each checkpoint):** offer to review and integrate. Ask the user once, in roughly this form:
+6. **When the plan is complete (and at each checkpoint):** integrate the branches.
 
-   > "Want me to review the diffs and merge these branches into main? (Otherwise I'll just hand you the worktree paths.)"
+   First, check the skill arguments for an integration mode:
 
-   - **If yes:** for each branch produced in this run (or since the last checkpoint), run `git diff main..<branch>`, read it, and judge it against what was asked. If it looks right, merge into main, then `git worktree remove <path>` and `git branch -d <branch>`. If something looks wrong, stop and report the specific concern instead of merging that branch. On conflicts between parallel branches, resolve them in main and then merge.
+   - `--no-review` (or `--trust`): skip the offer and the diff-reading. For each branch produced in this run, merge it straight into main, then `git worktree remove <path>` and `git branch -d <branch>`. Only stop on actual merge conflicts (which still need resolution). Report the merges done.
 
-   - **If no:** report the worktree paths and branches and stop.
+   - **No flag (default):** ask the user once, in roughly this form:
+
+     > "Want me to review the diffs and merge these branches into main? (Otherwise I'll just hand you the worktree paths.)"
+
+     - **If yes:** for each branch, run `git diff main..<branch>`, read it, and judge it against what was asked. If it looks right, merge into main, then remove the worktree and delete the branch. If something looks wrong, stop and report the specific concern instead of merging that branch. On conflicts between parallel branches, resolve them in main and then merge.
+
+     - **If no:** report the worktree paths and branches and stop.
 
    Either way, also report anything left unfinished or any assumptions made along the way.
 
-   You are the reviewer of record when the user opts in. Don't rubber-stamp — if a diff doesn't match the plan, say so.
+   When you're the reviewer of record (default + user said yes), don't rubber-stamp — if a diff doesn't match the plan, say so.
 
 ## Example subagent call
 
