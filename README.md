@@ -55,6 +55,45 @@ ln -s "$(pwd)/agents/implementer.md" ~/.claude/agents/implementer.md
 
 That's it. In your next Claude Code session, type `/orchestrate` to invoke it.
 
+## What a session looks like
+
+Roughly:
+
+```
+You:    [pitch an idea, talk it through with Claude]
+You:    "Ask me questions until you're 95% sure what to write down for a plan."
+Claude: [questions, you answer, repeat until aligned]
+Claude: [writes PLAN.md or just holds the plan in context]
+You:    /orchestrate
+
+Claude: Delegation plan:
+          Wave 1 (parallel):
+            - A: add migration for new users.role column
+            - B: scaffold the /admin route group
+          Wave 2 (sequential, depends on A):
+            - C: wire role-based middleware into existing routes
+          Checkpoint after Wave 2.
+          Wave 3 (parallel):
+            - D: admin dashboard UI
+            - E: audit log table
+        OK to proceed?
+You:    yes
+
+Claude: [spawns A and B in parallel, each in its own worktree]
+Claude: Wave 1 done. A → worktree at .../wt-a on branch agent/add-role-migration.
+        B → worktree at .../wt-b on branch agent/admin-route-scaffold. Starting Wave 2.
+Claude: [spawns C]
+Claude: Wave 2 done. Hitting the checkpoint — please review before Wave 3.
+You:    [review, merge, approve] go
+Claude: [spawns D and E in parallel, reports results]
+Claude: Done. Worktrees to review:
+          .../wt-a (branch agent/add-role-migration)
+          .../wt-b (branch agent/admin-route-scaffold)
+          .../wt-c (branch agent/role-middleware)
+          .../wt-d (branch agent/admin-dashboard)
+          .../wt-e (branch agent/audit-log)
+```
+
 ## Usage
 
 The typical flow this is built for:
@@ -71,6 +110,25 @@ The typical flow this is built for:
 - **Mark checkpoints explicitly** in your plan — words like "Checkpoint", "stop here", "review", or a `## Checkpoint` heading all work.
 - **Default model** for implementers is inherited from the orchestrator. If you want them cheaper, add `model: sonnet` (or `model: haiku`) to the frontmatter of `agents/implementer.md`.
 - **Tools** the implementer has are listed in its frontmatter. It deliberately doesn't have access to spawn sub-agents — it's the lowest-level worker. Edit the `tools:` line if you want to scope it down further.
+
+## Cleaning up worktrees
+
+After a few `/orchestrate` runs you'll accumulate worktrees and branches. Standard git cleanup:
+
+```bash
+# See what's around
+git worktree list
+git branch
+
+# Remove a worktree once you've merged or dropped its work
+git worktree remove <path>
+git branch -d <branch>          # -D if not merged and you're sure
+
+# Bulk: prune any worktrees whose directories were deleted manually
+git worktree prune
+```
+
+Eventually this repo may grow a sibling `/integrate` skill that handles merge + cleanup, but for now the integration step is yours.
 
 ## Customizing
 

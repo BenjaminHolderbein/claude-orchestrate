@@ -66,6 +66,8 @@ If you can't confidently identify a plan, ask the user. Never silently pick a st
 
    Keep it that tight. Show dependencies, what runs in parallel vs sequentially, and where the checkpoints fall. Then ask: "OK to proceed?" Do not paraphrase or summarize the plan content itself.
 
+   **Exception:** if the plan is trivially a single unit of work (one wave, one implementer, no dependencies, no checkpoints), skip this check-in and just go. The cost of a pause exceeds the value of confirmation when there's nothing to decompose.
+
 3. **Spawn `implementer` subagents in waves**, parallelizing within a wave when safe (multiple `Agent` tool calls in one message).
 
 4. **Between waves:** collect results, give the user a 1–3 line status update (what completed, worktree paths, what's next), and continue. Don't ask permission to continue between waves — only stop for the reasons in rule 4 above.
