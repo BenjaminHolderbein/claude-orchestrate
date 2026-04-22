@@ -15,7 +15,7 @@ Use the most recent, most clearly-intended plan. In order of preference:
 
 3. **A plan file in the working directory** — only if (1) and (2) don't apply, and only if the user has referenced it or it was clearly written for this work. When in doubt, ask — don't adopt a stale file on your own.
 
-If you can't confidently identify a plan, ask the user. Never silently pick a stale or unrelated file.
+If you can't confidently identify a plan, ask the user.
 
 ## Core rules
 
@@ -43,11 +43,11 @@ If you can't confidently identify a plan, ask the user. Never silently pick a st
 
 6. **Brief subagents like colleagues.** Each `Agent` prompt should be self-contained: what to build, why, which files are in scope, what "done" looks like, and any constraints from the plan. You do *not* need to restate the workflow rules (testing, green-before-commit, commit hygiene, worktree discipline) — those are baked into the `implementer` agent definition.
 
-7. **Track and report.** After each wave of subagents returns, give the user a short status update: what was completed, the worktree paths/branches produced, and what's next. At checkpoints, include enough detail for the user to review and approve.
-
 ## Workflow
 
 1. **Locate the plan** (see above). Read it once, fully.
+
+   Then capture the **invocation branch**: `git rev-parse --abbrev-ref HEAD`. This is the branch the user was on when they invoked `/orchestrate`, and it is the integration target for all work produced in this run. If HEAD is detached or on `main`/`master`, ask the user which branch to integrate into (or whether to create a new one) before proceeding.
 
 2. **Produce a delegation plan and show it to the user.** This is the one mandatory check-in before spawning anything. The delegation plan is *not* a restatement of the plan — assume the user already knows what's in the plan. It is purely about *how you intend to split the work*. Format it as something like:
 
@@ -66,25 +66,23 @@ If you can't confidently identify a plan, ask the user. Never silently pick a st
 
    Keep it that tight. Show dependencies, what runs in parallel vs sequentially, and where the checkpoints fall. Then ask: "OK to proceed?" Do not paraphrase or summarize the plan content itself.
 
-   **Exception:** if the plan is trivially a single unit of work (one wave, one implementer, no dependencies, no checkpoints), skip this check-in and just go. The cost of a pause exceeds the value of confirmation when there's nothing to decompose.
+   **Exception:** if the plan is trivially a single unit of work (one wave, one implementer, no dependencies, no checkpoints), skip this check-in and just go.
 
-3. **Spawn `implementer` subagents in waves**, parallelizing within a wave when safe (multiple `Agent` tool calls in one message).
+3. **After each wave**, fast-forward the invocation branch onto each worktree branch the wave produced (`git merge --ff-only <worktree-branch>` from the main repo). For parallel branches, merge in order; if a later one can't fast-forward, do a regular merge and reconcile before the next wave. Nothing is pushed — this is local bookkeeping.
 
-4. **Between waves:** collect results, give the user a 1–3 line status update (what completed, worktree paths, what's next), and continue. Don't ask permission to continue between waves — only stop for the reasons in rule 4 above.
+   Then give the user a 1–3 line status update (what completed, where the invocation branch now sits) and continue. Tell the next wave's subagents to base their worktrees on `<invocation-branch>`, not on another wave's auto-generated branch.
 
-5. **At each checkpoint:** stop, summarize, wait for the user.
+4. **When the plan is complete (and at each checkpoint):** finalize integration on the **invocation branch**.
 
-6. **When the plan is complete (and at each checkpoint):** integrate the branches.
+   Check the skill arguments for an integration mode:
 
-   First, check the skill arguments for an integration mode:
-
-   - `--no-review` (or `--trust`): skip the offer and the diff-reading. For each branch produced in this run, merge it straight into main, then `git worktree remove <path>` and `git branch -d <branch>`. Only stop on actual merge conflicts (which still need resolution). Report the merges done.
+   - `--no-review` (or `--trust`): skip the diff-reading. For each worktree branch produced in this run, `git worktree remove -f -f <path>` and `git branch -d <branch>`. Report the branch state (`<invocation-branch>` now at `<sha>`, +N commits).
 
    - **No flag (default):** ask the user once, in roughly this form:
 
-     > "Want me to review the diffs and merge these branches into main? (Otherwise I'll just hand you the worktree paths.)"
+     > "Want me to review the full diff on `<invocation-branch>` from this run? (Otherwise I'll just clean up the worktrees and hand it back to you.)"
 
-     - **If yes:** for each branch, run `git diff main..<branch>`, read it, and judge it against what was asked. If it looks right, merge into main, then remove the worktree and delete the branch. If something looks wrong, stop and report the specific concern instead of merging that branch. On conflicts between parallel branches, resolve them in main and then merge.
+     - **If yes:** run `git diff <start-sha>..<invocation-branch>` (where `<start-sha>` is the invocation branch's position before the run), read it, and judge it against the plan. If it looks right, clean up worktrees (`git worktree remove -f -f <path>`) and delete the worktree branches (`git branch -d <branch>`). If something looks wrong, stop and report the specific concern instead of cleaning up — the worktrees and branches are still available for inspection.
 
      - **If no:** report the worktree paths and branches and stop.
 
@@ -102,5 +100,3 @@ Agent(
   prompt: "Implement step 3 of the plan: add a token-bucket rate limiter to the /api/upload endpoint. Files in scope: src/api/upload.ts, src/middleware/rateLimit.ts (new). Limit: 10 req/min per IP. The plan calls for reusing the existing Redis client in src/lib/redis.ts. Done = endpoint rejects with 429 over the limit, with a test covering both the allow and deny paths."
 )
 ```
-
-Note: no testing/commit/branch instructions in the prompt — those live in the implementer's system prompt.
