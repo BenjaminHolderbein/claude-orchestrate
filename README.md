@@ -2,6 +2,8 @@
 
 A small Claude Code workflow for driving plan execution with parallel sub-agents in isolated git worktrees — without retyping the orchestration prompt every time.
 
+This is my personal take on how a coding agent should execute a plan: a coordinator that doesn't write code itself, sub-agents that do one scoped thing in isolation, parallel work where it's safe, and a strong bias against exiting the loop for ceremony. Take it, fork it, change the rules to match how you work.
+
 ## What this is
 
 Two files:
